@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XLauchez</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style id="theme-style"></style>
+</head>
+<body>
+
+  <!-- ── Splash ───────────────────────────────────────────────────────────── -->
+  <div id="splash">
+    <div id="splash-content">
+      <div id="splash-logo"><span class="logo-x">X</span>Lauchez</div>
+      <div id="splash-text"></div>
+    </div>
+  </div>
+
+  <div id="app">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="logo"><span class="logo-x">X</span>Lauchez</div>
+
+      <nav class="nav">
+        <button class="nav-btn active" onclick="showSection('play', this)">Play</button>
+        <button class="nav-btn" onclick="showSection('settings', this)">Settings</button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="account-row" id="account-display" onclick="openAccountModal()">
+          <span class="account-name" id="account-name">No account</span>
+          <span class="account-sub" id="account-type">click to add</span>
+        </div>
+        <span class="app-ver">v0.1.0</span>
+      </div>
+    </aside>
+
+    <!-- ── Content ─────────────────────────────────────────────────────── -->
+    <main class="content">
+
+      <!-- Play -->
+      <section id="section-play" class="section active">
+
+        <!-- Profile row -->
+        <div class="profile-row">
+          <select id="profile-select" onchange="onProfileChange()">
+            <option value="">No profiles — create one</option>
+          </select>
+          <button class="btn-ghost" onclick="openProfileModal()" title="New profile">+</button>
+          <button class="btn-ghost btn-del-profile" id="del-profile-btn"
+                  onclick="deleteProfile()" title="Delete profile" disabled>✕</button>
+        </div>
+
+        <!-- Version + install row -->
+        <div class="version-row">
+          <select id="version-select" onchange="onVersionChange()">
+            <option value="">Loading versions…</option>
+          </select>
+          <label class="snap-toggle">
+            <input type="checkbox" id="show-snapshots" onchange="filterVersions()" />
+            Snapshots
+          </label>
+          <button class="btn-ghost" onclick="refreshVersions()" title="Refresh">↻</button>
+        </div>
+
+        <button class="btn-install" id="install-btn" onclick="installVersion()">Install</button>
+        <button class="btn-play"    id="play-btn"    onclick="launchGame()" disabled>Play</button>
+
+        <div class="progress-wrap" id="progress-container" style="display:none">
+          <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-msg" id="progress-msg"></span>
+        </div>
+
+        <div class="log" id="log-area"></div>
+      </section>
+
+      <!-- Settings -->
+      <section id="section-settings" class="section">
+        <div class="field">
+          <label>Game directory</label>
+          <input type="text" id="game-dir" placeholder="default" />
+        </div>
+
+        <div class="field">
+          <label>Java</label>
+          <div class="field-row">
+            <input type="text" id="java-path" placeholder="java" />
+            <button class="btn-ghost" onclick="detectJava()">Detect</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Memory (global defaults)</label>
+          <div class="field-row mem-row">
+            <span class="dim">min</span>
+            <input type="number" id="min-memory" value="512"  min="256" step="256" />
+            <span class="dim">max</span>
+            <input type="number" id="max-memory" value="2048" min="512" step="512" />
+            <span class="dim">MB</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>JVM arguments (global defaults)</label>
+          <textarea id="jvm-args" rows="4" placeholder="-XX:+UseG1GC"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Theme</label>
+          <div class="field-row">
+            <select id="theme-select" style="flex:1"></select>
+            <button class="btn-ghost" onclick="openThemesDir()" title="Open themes folder">&#128193;</button>
+          </div>
+        </div>
+
+        <button class="btn-save" onclick="saveSettings()">Save</button>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── New profile modal ──────────────────────────────────────────────── -->
+  <div class="overlay" id="profile-modal" style="display:none" onclick="overlayClose(event,'profile-modal')">
+    <div class="modal modal-sm">
+      <div class="modal-head">
+        <span>New profile</span>
+        <button class="close-btn" onclick="closeModal('profile-modal')">✕</button>
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="new-profile-name" placeholder="e.g. Vanilla 1.21.4" maxlength="48" />
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>Version</label>
+        <div class="field-row">
+          <select id="new-profile-version" style="flex:1"></select>
+          <label class="snap-toggle">
+            <input type="checkbox" id="new-profile-snapshots" onchange="filterNewProfileVersions()" />
+            Snapshots
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot" style="margin-top:14px">
+        <button class="btn-ms" onclick="confirmCreateProfile()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Account modal ──────────────────────────────────────────────────── -->
+  <div class="overlay" id="account-modal" style="display:none" onclick="overlayClose(event,'account-modal')">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Accounts</span>
+        <button class="close-btn" onclick="closeModal('account-modal')">✕</button>
+      </div>
+
+      <div class="accounts-list" id="accounts-list">
+        <p class="dim">No accounts yet.</p>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn-ghost" onclick="openOfflineModal()">+ Offline</button>
+        <button class="btn-ms"    onclick="startMicrosoftAuth()">+ Microsoft</button>
+      </div>
+
+      <div id="ms-flow" style="display:none">
+        <div class="ms-box">
+          <p class="dim">Go to <a id="ms-verify-url" href="#" target="_blank">microsoft.com/devicelogin</a> and enter:</p>
+          <div class="device-code" id="ms-device-code">XXXXXXXX</div>
+          <p class="dim" id="ms-status">Waiting…</p>
+        </div>
+        <button class="btn-ghost" onclick="cancelMsAuth()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Offline modal ──────────────────────────────────────────────────── -->
+  <div class="overlay" id="offline-modal" style="display:none" onclick="overlayClose(event,'offline-modal')">
+    <div class="modal modal-sm">
+      <div class="modal-head">
+        <span>Offline account</span>
+        <button class="close-btn" onclick="closeModal('offline-modal')">✕</button>
+      </div>
+      <input type="text" id="offline-username" placeholder="Username" maxlength="16" />
+      <div class="modal-foot" style="margin-top:14px">
+        <button class="btn-ms" onclick="confirmOffline()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
