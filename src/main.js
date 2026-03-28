@@ -37,14 +37,14 @@ async function applyTheme() {
 }
 
 function _injectTheme(theme) {
-  // Inject CSS overrides
-  el('theme-style').textContent = theme.css || '';
+  // CSS — main window + splash combined into one <style>
+  el('theme-style').textContent = (theme.main_css || '') + '\n' + (theme.splash_css || '');
 
   // Main window background
   const body = document.body;
   if (theme.main_bg_data_uri) {
-    body.style.backgroundImage = `url("${theme.main_bg_data_uri}")`;
-    body.style.backgroundSize  = 'cover';
+    body.style.backgroundImage    = `url("${theme.main_bg_data_uri}")`;
+    body.style.backgroundSize     = 'cover';
     body.style.backgroundPosition = 'center';
   } else {
     body.style.backgroundImage = '';
@@ -60,21 +60,21 @@ function _injectTheme(theme) {
     splash.classList.remove('has-bg');
   }
 
-  // Splash text
-  const texts = theme.meta?.splash_texts ?? [];
+  // Splash texts  →  theme.meta.splash.texts
+  const texts = theme.meta?.splash?.texts ?? [];
   if (texts.length) {
     el('splash-text').textContent = texts[Math.floor(Math.random() * texts.length)];
   }
 
-  // Button labels
-  const labels = theme.meta?.labels ?? {};
-  const patch = (id, key) => { const e = el(id); if (e && labels[key]) e.textContent = labels[key]; };
-  patch('play-btn',    'play');
-  patch('install-btn', 'install');
-  // nav buttons
+  // Button / nav labels  →  theme.meta.main.buttons
+  const b = theme.meta?.main?.buttons ?? {};
+  const patch = (id, val) => { const e = el(id); if (e && val) e.textContent = val; };
+  patch('play-btn',    b.play);
+  patch('install-btn', b.install);
+
   const navBtns = document.querySelectorAll('.nav-btn');
-  if (navBtns[0] && labels['nav_play'])     navBtns[0].textContent = labels['nav_play'];
-  if (navBtns[1] && labels['nav_settings']) navBtns[1].textContent = labels['nav_settings'];
+  if (navBtns[0] && b.nav_play)     navBtns[0].textContent = b.nav_play;
+  if (navBtns[1] && b.nav_settings) navBtns[1].textContent = b.nav_settings;
 }
 
 function hideSplash() {

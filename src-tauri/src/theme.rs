@@ -5,16 +5,22 @@
 //! Theme loading, listing, and default-theme scaffolding.
 //!
 //! Each theme lives in its own subdirectory of `themes_dir`:
-//!   `{themes_dir}/{folder_name}/theme.json`
-//!   `{themes_dir}/{folder_name}/{stylesheet}`
-//!   `{themes_dir}/{folder_name}/{main_background}`   (optional)
-//!   `{themes_dir}/{folder_name}/{splash_background}` (optional)
 //!
-//! `theme.json` is the manifest; `stylesheet` is a CSS file that overrides
-//! `:root` variables.  Background images (if any) are returned as data-URIs.
+//! ```text
+//! {themes_dir}/{folder}/
+//!   theme.json
+//!   css/
+//!     main.css      ← main window styles (overrides :root variables)
+//!     splash.css    ← splash screen styles (extends main.css)
+//!   backgrounds/
+//!     bg_main.png   ← optional
+//!     bg_splash.png ← optional
+//! ```
+//!
+//! Paths inside `theme.json` are relative to the theme folder and may start
+//! with `"./"` (e.g. `"./css/main.css"`).
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 
@@ -23,59 +29,112 @@ use crate::error::Result;
 /// Manifest file (`theme.json`) for a theme.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeMeta {
-    /// Display name shown in the launcher UI.
     pub name: String,
     #[serde(default)]
     pub author: String,
+    #[serde(default)]
+    pub description: String,
     #[serde(default = "ver_default")]
     pub version: String,
-    /// Relative path to the CSS file (from the theme folder).
-    pub stylesheet: String,
-    /// Relative path to the main window background image, or null.
     #[serde(default)]
-    pub main_background: Option<String>,
-    /// Relative path to the splash screen background image, or null.
+    pub main: ThemeMain,
     #[serde(default)]
-    pub splash_background: Option<String>,
-    /// Random texts displayed on the splash screen.
-    #[serde(default)]
-    pub splash_texts: Vec<String>,
-    /// Overrides for button/navigation labels.
-    /// Keys: "play", "install", "nav_play", "nav_settings", "save_settings",
-    ///       "detect_java", "create_profile", "add_offline", "add_microsoft".
-    #[serde(default)]
-    pub labels: HashMap<String, String>,
-    /// Layout hints for the UI.
-    #[serde(default)]
-    pub layout: ThemeLayout,
+    pub splash: ThemeSplash,
 }
 
-fn ver_default() -> String { "1.0".into() }
+fn ver_default() -> String { "1.0.0".into() }
+
+// ── main ──────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeMain {
+    #[serde(default)]
+    pub buttons: ThemeButtons,
+    #[serde(default)]
+    pub layout: ThemeLayout,
+    #[serde(default)]
+    pub backgrounds: ThemeMainBgs,
+    #[serde(default)]
+    pub css: ThemeMainCss,
+}
+
+/// Localised labels for every interactive element in the launcher.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeButtons {
+    pub play:           Option<String>,
+    pub install:        Option<String>,
+    pub nav_play:       Option<String>,
+    pub nav_settings:   Option<String>,
+    pub save_settings:  Option<String>,
+    pub detect_java:    Option<String>,
+    pub create_profile: Option<String>,
+    pub add_offline:    Option<String>,
+    pub add_microsoft:  Option<String>,
+}
+
+/// Layout hints for the main window.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ThemeLayout {
-    /// "left" (default) or "right" — which side the sidebar appears on.
-    #[serde(default)]
-    pub sidebar_position: Option<String>,
-    /// "stretch" (default), "left", "center", "right".
-    #[serde(default)]
+    /// `"left"` (default) or `"right"` — which side the sidebar appears on.
+    pub sidebar_position:  Option<String>,
+    /// `"stretch"` (default), `"left"`, `"center"`, or `"right"`.
     pub play_button_align: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeMainBgs {
+    /// Relative path to the main window background image.
+    pub main: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeMainCss {
+    /// Relative path to the main window stylesheet.
+    pub main: Option<String>,
+}
+
+// ── splash ────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeSplash {
+    #[serde(default)]
+    pub texts: Vec<String>,
+    #[serde(default)]
+    pub backgrounds: ThemeSplashBgs,
+    #[serde(default)]
+    pub css: ThemeSplashCss,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeSplashBgs {
+    /// Relative path to the splash screen background image.
+    pub splash: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ThemeSplashCss {
+    /// Relative path to the splash screen stylesheet.
+    pub splash: Option<String>,
+}
+
+// ── transport ─────────────────────────────────────────────────────────────────
 
 /// Full theme payload sent to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeData {
     pub folder_name: String,
     pub meta: ThemeMeta,
-    /// Raw CSS text to inject into the page.
-    pub css: String,
+    /// Raw CSS for the main window.
+    pub main_css: String,
+    /// Raw CSS for the splash screen.
+    pub splash_css: String,
     /// Optional data-URI for the main background.
     pub main_bg_data_uri: Option<String>,
     /// Optional data-URI for the splash background.
     pub splash_bg_data_uri: Option<String>,
 }
 
-/// Lightweight entry for the theme list.
+/// Lightweight entry for the theme picker list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeEntry {
     pub folder_name: String,
@@ -88,34 +147,51 @@ pub struct ThemeEntry {
 const DARK_JSON: &str = r#"{
   "name": "Тёмная",
   "author": "XLauchez",
-  "version": "1.0",
-  "stylesheet": "theme.css",
-  "main_background": null,
-  "splash_background": null,
-  "splash_texts": [
-    "Mining some code…",
-    "Summoning diamonds…",
-    "Preparing the Nether…",
-    "Loading chunks…",
-    "Crafting your world…",
-    "Consulting the villagers…",
-    "Smelting ores…"
-  ],
-  "labels": {
-    "play": "Play",
-    "install": "Install",
-    "nav_play": "Play",
-    "nav_settings": "Settings",
-    "save_settings": "Save",
-    "detect_java": "Detect",
-    "create_profile": "Create",
-    "add_offline": "+ Offline",
-    "add_microsoft": "+ Microsoft"
+  "description": "Built-in dark theme",
+  "version": "1.0.0",
+  "main": {
+    "buttons": {
+      "play":           "Play",
+      "install":        "Install",
+      "nav_play":       "Play",
+      "nav_settings":   "Settings",
+      "save_settings":  "Save",
+      "detect_java":    "Detect",
+      "create_profile": "Create",
+      "add_offline":    "+ Offline",
+      "add_microsoft":  "+ Microsoft"
+    },
+    "layout": {
+      "sidebar_position":  "left",
+      "play_button_align": "stretch"
+    },
+    "backgrounds": {
+      "main": null
+    },
+    "css": {
+      "main": "./css/main.css"
+    }
   },
-  "layout": {}
+  "splash": {
+    "texts": [
+      "Mining some code…",
+      "Summoning diamonds…",
+      "Preparing the Nether…",
+      "Loading chunks…",
+      "Crafting your world…",
+      "Consulting the villagers…",
+      "Smelting ores…"
+    ],
+    "backgrounds": {
+      "splash": null
+    },
+    "css": {
+      "splash": "./css/splash.css"
+    }
+  }
 }"#;
 
-const DARK_CSS: &str = r#"/* XLauchez — Тёмная (built-in) */
+const DARK_MAIN_CSS: &str = r#"/* XLauchez — Тёмная */
 :root {
   --bg:      #111111;
   --surface: #191919;
@@ -128,37 +204,57 @@ const DARK_CSS: &str = r#"/* XLauchez — Тёмная (built-in) */
 }
 "#;
 
+const DARK_SPLASH_CSS: &str =
+    "/* XLauchez — Тёмная splash (extends main.css) */\n";
+
 const LIGHT_JSON: &str = r#"{
   "name": "Светлая",
   "author": "XLauchez",
-  "version": "1.0",
-  "stylesheet": "theme.css",
-  "main_background": null,
-  "splash_background": null,
-  "splash_texts": [
-    "Mining some code…",
-    "Summoning diamonds…",
-    "Preparing the Nether…",
-    "Loading chunks…",
-    "Crafting your world…",
-    "Consulting the villagers…",
-    "Smelting ores…"
-  ],
-  "labels": {
-    "play": "Play",
-    "install": "Install",
-    "nav_play": "Play",
-    "nav_settings": "Settings",
-    "save_settings": "Save",
-    "detect_java": "Detect",
-    "create_profile": "Create",
-    "add_offline": "+ Offline",
-    "add_microsoft": "+ Microsoft"
+  "description": "Built-in light theme",
+  "version": "1.0.0",
+  "main": {
+    "buttons": {
+      "play":           "Play",
+      "install":        "Install",
+      "nav_play":       "Play",
+      "nav_settings":   "Settings",
+      "save_settings":  "Save",
+      "detect_java":    "Detect",
+      "create_profile": "Create",
+      "add_offline":    "+ Offline",
+      "add_microsoft":  "+ Microsoft"
+    },
+    "layout": {
+      "sidebar_position":  "left",
+      "play_button_align": "stretch"
+    },
+    "backgrounds": {
+      "main": null
+    },
+    "css": {
+      "main": "./css/main.css"
+    }
   },
-  "layout": {}
+  "splash": {
+    "texts": [
+      "Mining some code…",
+      "Summoning diamonds…",
+      "Preparing the Nether…",
+      "Loading chunks…",
+      "Crafting your world…",
+      "Consulting the villagers…",
+      "Smelting ores…"
+    ],
+    "backgrounds": {
+      "splash": null
+    },
+    "css": {
+      "splash": "./css/splash.css"
+    }
+  }
 }"#;
 
-const LIGHT_CSS: &str = r#"/* XLauchez — Светлая (built-in) */
+const LIGHT_MAIN_CSS: &str = r#"/* XLauchez — Светлая */
 :root {
   --bg:      #f0f0f0;
   --surface: #e6e6e6;
@@ -171,12 +267,15 @@ const LIGHT_CSS: &str = r#"/* XLauchez — Светлая (built-in) */
 }
 "#;
 
+const LIGHT_SPLASH_CSS: &str =
+    "/* XLauchez — Светлая splash (extends main.css) */\n";
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /// Write the two built-in themes to disk if they don't already exist.
 pub fn ensure_defaults(themes_dir: &Path) -> Result<()> {
-    write_default(themes_dir, "dark",  DARK_JSON,  DARK_CSS)?;
-    write_default(themes_dir, "light", LIGHT_JSON, LIGHT_CSS)?;
+    write_default(themes_dir, "dark",  DARK_JSON,  DARK_MAIN_CSS,  DARK_SPLASH_CSS)?;
+    write_default(themes_dir, "light", LIGHT_JSON, LIGHT_MAIN_CSS, LIGHT_SPLASH_CSS)?;
     Ok(())
 }
 
@@ -192,13 +291,12 @@ pub fn list(themes_dir: &Path) -> Vec<ThemeEntry> {
                     let folder = e.file_name().to_string_lossy().to_string();
                     let meta = read_meta(&e.path()).ok()?;
                     Some(ThemeEntry {
-                        folder_name: folder,
+                        folder_name:  folder,
                         display_name: meta.name,
-                        author: meta.author,
+                        author:       meta.author,
                     })
                 })
                 .collect();
-            // Built-in themes first, then alphabetical.
             v.sort_by(|a, b| {
                 let rank = |s: &str| match s { "dark" => 0, "light" => 1, _ => 2 };
                 rank(&a.folder_name).cmp(&rank(&b.folder_name))
@@ -214,28 +312,41 @@ pub fn load(themes_dir: &Path, folder_name: &str) -> Result<ThemeData> {
     let theme_dir = themes_dir.join(folder_name);
     let meta = read_meta(&theme_dir)?;
 
-    let css_path = theme_dir.join(&meta.stylesheet);
-    let css = if css_path.exists() {
-        std::fs::read_to_string(&css_path)?
-    } else {
-        String::new()
-    };
+    let main_css   = read_css(&theme_dir, meta.main.css.main.as_deref());
+    let splash_css = read_css(&theme_dir, meta.splash.css.splash.as_deref());
 
-    let main_bg_data_uri = meta.main_background.as_ref()
-        .and_then(|p| image_to_data_uri(&theme_dir.join(p)).ok());
-    let splash_bg_data_uri = meta.splash_background.as_ref()
-        .and_then(|p| image_to_data_uri(&theme_dir.join(p)).ok());
+    let main_bg_data_uri = meta.main.backgrounds.main.as_ref()
+        .and_then(|p| image_to_data_uri(&resolve(&theme_dir, p)).ok());
+    let splash_bg_data_uri = meta.splash.backgrounds.splash.as_ref()
+        .and_then(|p| image_to_data_uri(&resolve(&theme_dir, p)).ok());
 
-    Ok(ThemeData { folder_name: folder_name.to_string(), meta, css, main_bg_data_uri, splash_bg_data_uri })
+    Ok(ThemeData {
+        folder_name: folder_name.to_string(),
+        meta,
+        main_css,
+        splash_css,
+        main_bg_data_uri,
+        splash_bg_data_uri,
+    })
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-fn write_default(themes_dir: &Path, name: &str, json: &str, css: &str) -> Result<()> {
-    let dir = themes_dir.join(name);
-    std::fs::create_dir_all(&dir)?;
-    write_if_missing(&dir.join("theme.json"), json.as_bytes())?;
-    write_if_missing(&dir.join("theme.css"),  css.as_bytes())?;
+fn write_default(
+    themes_dir: &Path,
+    name: &str,
+    json: &str,
+    main_css: &str,
+    splash_css: &str,
+) -> Result<()> {
+    let dir     = themes_dir.join(name);
+    let css_dir = dir.join("css");
+    let bg_dir  = dir.join("backgrounds");
+    std::fs::create_dir_all(&css_dir)?;
+    std::fs::create_dir_all(&bg_dir)?;
+    write_if_missing(&dir.join("theme.json"),        json.as_bytes())?;
+    write_if_missing(&css_dir.join("main.css"),   main_css.as_bytes())?;
+    write_if_missing(&css_dir.join("splash.css"), splash_css.as_bytes())?;
     Ok(())
 }
 
@@ -247,6 +358,19 @@ fn write_if_missing(path: &Path, data: &[u8]) -> Result<()> {
 fn read_meta(theme_dir: &Path) -> Result<ThemeMeta> {
     let data = std::fs::read_to_string(theme_dir.join("theme.json"))?;
     Ok(serde_json::from_str(&data)?)
+}
+
+/// Resolve a theme-relative path (strips leading `"./"` if present).
+fn resolve(theme_dir: &Path, relative: &str) -> PathBuf {
+    theme_dir.join(relative.strip_prefix("./").unwrap_or(relative))
+}
+
+/// Read a CSS file referenced from `theme.json`; returns empty string on any error.
+fn read_css(theme_dir: &Path, path: Option<&str>) -> String {
+    path.map(|p| {
+        let full = resolve(theme_dir, p);
+        if full.exists() { std::fs::read_to_string(&full).unwrap_or_default() } else { String::new() }
+    }).unwrap_or_default()
 }
 
 fn image_to_data_uri(path: &Path) -> Result<String> {
